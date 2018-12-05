@@ -1,0 +1,7 @@
+"0","# 3"
+"0","# You can't do this"
+"0","# ggplot(data = ggp_mpg) +"
+"0","#   geom_point(mapping = aes(x = displ, y = hwy, shape = cty))"
+"0","# 4"
+"0","ggplot(data = ggp_mpg) +"
+"0","  geom_point(mapping = aes(x = displ, y = hwy, size = cty, color = cty))"

@@ -1,0 +1,1 @@
+{"conditions":[[1,"The shape palette can deal with a maximum of 6 discrete values\nbecause more than 6 becomes difficult to discriminate; you have\n7. Consider specifying shapes manually if you must have them."],[1,"Removed 62 rows containing missing values (geom_point)."]],"height":374.5364647713226,"size_behavior":0,"width":606.0000000000000}
