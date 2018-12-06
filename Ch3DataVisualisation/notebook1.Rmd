@@ -128,6 +128,148 @@ ggplot(data = ggp_mpg) +
 
 # Geometric Objects
 ```{r}
+ggplot(data = ggp_mpg) +
+  geom_point(mapping = aes(x = displ, y = hwy))
 
+ggplot(data = ggp_mpg) +
+  geom_smooth(mapping = aes(x = displ, y = hwy))
+
+ggplot(data = ggp_mpg) +
+  geom_smooth(mapping = aes(x = displ, y = hwy, linetype = drv))
+
+# Create overlay
+ggplot(data = ggp_mpg) +
+  geom_smooth(mapping = aes(x = displ, y = hwy, linetype = drv)) +
+  geom_point(mapping = aes(x = displ, y = hwy, color=drv))
+
+ggplot(data = ggp_mpg) +
+  geom_smooth(mapping = aes(x = displ, y = hwy))
+
+ggplot(data = ggp_mpg) +
+  geom_smooth(mapping = aes(x = displ, y = hwy, group = drv))
+
+ggplot(data = ggp_mpg) +
+  geom_smooth(
+    mapping = aes(x = displ, y = hwy, color = drv),
+    show.legend = FALSE
+  )
+
+ggplot(data = ggp_mpg) +
+  geom_point(mapping = aes(x = displ, y = hwy)) +
+  geom_smooth(mapping = aes(x = displ, y = hwy))
+
+# cleaner
+ggplot(data = ggp_mpg, mapping = aes(x = displ, y = hwy)) +
+  geom_point() +
+  geom_smooth()
+
+# with different aesthetics for each plot
+ggplot(data = ggp_mpg, mapping = aes(x = displ, y = hwy)) +
+  geom_point(mapping = aes(color = class)) +
+  geom_smooth()
+
+# Specify different data for each layer
+ggplot(data = ggp_mpg, mapping = aes(x = displ, y = hwy)) +
+  geom_point(mapping = aes(color = class)) +
+  geom_smooth(data = filter(mpg, class == "subcompact"), se = FALSE)
+
+
+```
+
+# Exercises
+```{r}
+# 2
+ggplot(data = ggp_mpg, mapping = aes(x = displ, y = hwy, color = drv)) +
+  geom_point() +
+  geom_smooth(se = FALSE)
+
+# 6
+ggplot(data = ggp_mpg, mapping = aes(x = displ, y = hwy)) +
+  geom_point() +
+  geom_smooth(se = FALSE)
+
+ggplot(data = ggp_mpg, mapping = aes(x = displ, y = hwy)) +
+  geom_point() +
+  geom_smooth(mapping = aes(group = drv), se = FALSE)
+
+ggplot(data = ggp_mpg, mapping = aes(x = displ, y = hwy)) +
+  geom_point() +
+  geom_smooth(mapping = aes(group = drv), se = FALSE)
+
+ggplot(data = ggp_mpg, mapping = aes(x = displ, y = hwy)) +
+  geom_point(mapping = aes(color = drv)) +
+  geom_smooth(mapping = aes(group = drv, color = drv), se = FALSE)
+
+ggplot(data = ggp_mpg, mapping = aes(x = displ, y = hwy)) +
+  geom_point(mapping = aes(color = drv)) +
+  geom_smooth(se = FALSE)
+
+ggplot(data = ggp_mpg, mapping = aes(x = displ, y = hwy)) +
+  geom_point(mapping = aes(color = drv)) +
+  geom_smooth(mapping = aes(linetype = drv), se = FALSE)
+
+ggplot(data = ggp_mpg, mapping = aes(x = displ, y = hwy)) +
+  geom_point(mapping = aes(fill = drv), shape = 21, color = "white")
+```
+
+# Statistical Transformations
+```{r}
+# Using geom_bar()
+ggplot(data = diamonds) +
+  geom_bar(mapping = aes(x = cut))
+
+# Using stat()
+ggplot(data = diamonds) +
+  stat_count(mapping = aes(x = cut))
+
+demo <- tribble(
+  ~cut,        ~freq,
+  "Fair",      1610,
+  "Good",      4906,
+  "Very Good", 12082,
+  "Premium",   13791,
+  "Ideal",     21551
+)
+
+ggplot(data = demo) +
+  geom_bar(mapping = aes(x = cut, y = freq), stat = "identity")
+
+# Using proportion
+ggplot(data = diamonds) +
+  geom_bar(mapping = aes(x = cut, y = ..prop.., group = 1))
+
+ggplot(data = diamonds) +
+  stat_summary(
+    mapping = aes(x = cut, y = depth),
+    fun.ymin = min,
+    fun.ymax = max,
+    fun.y = median
+  )
+```
+
+# Exercises
+```{r}
+ggplot(data = diamonds) +
+  geom_pointrange(
+    mapping = aes(x = cut, y = depth),
+    stat = "summary",
+    fun.ymin = min,
+    fun.ymax = max,
+    fun.y = median
+  )
+
+ggplot(data = diamonds) +
+  geom_bar(mapping = aes(x = cut, y = ..prop..))
+
+ggplot(data = diamonds) +
+  geom_bar(mapping = aes(x = cut, fill = color, y = ..prop..))
+```
+
+```{r}
+ggplot(data = diamonds) +
+  geom_bar(mapping = aes(x = cut, y = ..prop.., group = 1))
+
+ggplot(data = diamonds) +
+  geom_bar(mapping = aes(x = cut, fill = color, y = ..prop.., group = color))
 ```
 
