@@ -340,4 +340,3 @@ delays <- not_cancelled %>%
 ggplot(data = delays, mapping = aes(x = n, y = delay)) +
   geom_point(alpha = 1/10)
 ```
-
