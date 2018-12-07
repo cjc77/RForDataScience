@@ -1,0 +1,136 @@
+---
+title: "Chapter 5"
+output: html_notebook
+---
+
+
+```{r}
+library(nycflights13)
+library(tidyverse)
+```
+
+# nycflights13
+```{r}
+flights
+```
+
+# Filter Rows
+```{r}
+# filter by flights on the 1st of january
+(jan1 <- filter(flights, month == 1, day == 1))
+```
+
+# Comparisons
+```{r}
+sqrt(2) ^ 2 == 2
+1 / 49 * 49 == 1
+near(sqrt(2) ^ 2, 2)
+near(1 / 49 * 49, 1)
+
+```
+
+# Logical operators
+```{r}
+(nov_dec <- filter(flights, month == 11 | month == 12))
+
+# using shorthand
+(nov_dec <- filter(flights, month %in% c(11, 12)))
+# using demorgan's
+(delay_range1 <- filter(flights, !(arr_delay > 120 | dep_delay > 120)))
+```
+
+# Missing Values
+```{r}
+NA > 5
+10 == NA
+NA == NA
+x <- NA
+is.na(x)
+df <- tibble(x = c(1, NA, 3))
+filter(df, x > 1)
+filter(df, is.na(x) | x > 1)
+```
+
+# Exercises
+```{r}
+# 1
+filter(flights, arr_delay >= 120)
+filter(flights, dest == "IAH" | dest == "HOU")
+filter(flights, carrier == "UA" | carrier == "AA" | carrier == "DL")
+filter(flights, month %in% c(7, 8, 9))
+filter(flights, dep_delay <= 0, arr_delay > 120)
+filter(flights, dep_delay >= 60, dep_delay - arr_delay > 30)
+filter(flights, between(dep_time, 0, 600) | dep_time == 2400)
+filter(flights, is.na(dep_time))
+```
+
+# Arrange Rows
+```{r}
+arrange(flights, year, month, day)
+arrange(flights, desc(dep_delay))
+arrange(flights, dep_delay)
+
+# Missing values are always sorted at the end
+df <- tibble(x = c(5, 2, NA))
+arrange(df, x)
+arrange(df, desc(x))
+```
+
+# Exercises
+```{r}
+# 1
+arrange(flights, desc(is.na(dep_time)), dep_time)
+# 2
+# Most delayed
+arrange(flights, desc(dep_delay))
+# Earliest
+arrange(flights, dep_delay)
+# 3
+# total air time
+arrange(flights, air_time)
+# average air time
+arrange(flights, distance / air_time * 60)
+# 4
+# interpretation 1
+arrange(flights, desc(distance))
+arrange(flights, distance)
+# interpretation 2
+arrange(flights, desc(air_time))
+arrange(flights, air_time)
+```
+
+# Select Columns
+```{r}
+select(flights, year, month, day)
+# Select range of columns
+select(flights, year:day)
+# Exclude columns
+select(flights, -(year:day))
+rename(flights, tail_num = tailnum)
+# Move some variables to the start of the dataframe
+select(flights, time_hour, air_time, everything())
+```
+
+# Exercises
+```{r}
+# 1
+select(flights, dep_time, dep_delay, arr_time, arr_delay)
+select(flights, "dep_time", "dep_delay", "arr_time", "arr_delay")
+select(flights, starts_with("dep_"), starts_with("arr_"))
+select(flights, 4, 6, 7, 9)
+select(flights, matches("^(dep|arr)_(delay|time)$"))
+of_interest <- c("dep_time", "dep_delay", "arr_time", "arr_delay")
+select(flights, one_of(of_interest))
+# 2
+select(flights, dep_time, dep_time)
+
+# 4
+select(flights, contains("TIME"))
+select(flights, contains("TIME", ignore.case = FALSE))
+```
+
+# Add new variables
+```{r}
+
+```
+

@@ -1,0 +1,19 @@
+---
+title: "Chapter 4"
+output: html_notebook
+---
+# Coding Basics
+```{r}
+1 / 200 * 30
+(10 + 2 - 57) / 24
+sin(pi / 2)
+
+x <- 3 * 4
+```
+# Calling Functions
+```{r}
+seq(1, 10)
+# surroinding with ()'s performs the action and prints
+(y <- seq(1, 10, length.out = 5))
+```
+
