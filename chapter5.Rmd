@@ -339,4 +339,6 @@ delays <- not_cancelled %>%
 # We see that variation decreases as sample size increases
 ggplot(data = delays, mapping = aes(x = n, y = delay)) +
   geom_point(alpha = 1/10)
+
+# test comment for git.
 ```
