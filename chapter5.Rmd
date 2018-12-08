@@ -333,12 +333,227 @@ delays <- not_cancelled %>%
   group_by(tailnum) %>%
   summarize(
     delay = mean(arr_delay),
-    n = n()
+    flight_cnt = n()
   )
 
-# We see that variation decreases as sample size increases
-ggplot(data = delays, mapping = aes(x = n, y = delay)) +
+# we see that variation decreases as sample size increases
+ggplot(data = delays, mapping = aes(x = flight_cnt, y = delay)) +
   geom_point(alpha = 1/10)
 
-# test comment for git.
+# Filter out groups with smallest number of observation
+delays %>%
+  filter(flight_cnt > 25) %>%
+  ggplot(mapping = aes(x = flight_cnt, y = delay)) +
+    geom_point(alpha = 1/10)
 ```
+
+# Baseball Example
+```{r}
+# Convert to tibble
+batting <- as_tibble(Lahman::Batting)
+
+(batters <- batting %>%
+  group_by(playerID) %>%
+  summarize(
+    ba = sum(H, na.rm = TRUE) / sum(AB, na.rm = TRUE),
+    ab = sum(AB, na.rm = TRUE)
+  ))
+
+batters %>%
+  filter(ab > 100) %>%
+  ggplot(mapping = aes(x = ab, y = ba)) +
+    geom_point() +
+    geom_smooth(se=FALSE)
+
+# Find people with highest averages (these will likely be people with only a few at bats)
+batters %>%
+  arrange(desc(ba))
+```
+
+# Useful summary functions
+```{r}
+# Logical subsetting
+not_cancelled %>%
+  group_by(year, month, day) %>%
+  summarize(
+    avg_delay = mean(arr_delay),
+    avg_pos_delay = mean(arr_delay[arr_delay > 0]) # avg. delay amongst positive delays
+  )
+
+# Measures of spread
+not_cancelled %>%
+  group_by(dest) %>%
+  summarize(distance_sd = sd(distance)) %>%
+  arrange(desc(distance_sd))
+
+# Measures of rank
+not_cancelled %>%
+  group_by(year, month, day) %>%
+  summarize(
+    first = min(dep_time),
+    last = max(dep_time)
+  )
+
+# Measures of position
+not_cancelled %>%
+  group_by(year, month, day) %>%
+  summarize(
+    first = first(dep_time),
+    last = last(dep_time)
+  )
+
+# Filtering
+not_cancelled %>%
+  group_by(year, month, day) %>%
+  mutate(r = min_rank(desc(dep_time))) %>%
+  select(year:day, r, everything()) %>%
+  filter(r %in% range(r))
+
+# Counts
+not_cancelled %>%
+  group_by(dest) %>%
+  summarize(carriers = n_distinct(carrier)) %>%
+  arrange(desc(carriers))
+
+not_cancelled %>%
+  count(dest)
+
+not_cancelled %>%
+  count(tailnum, wt = distance)
+
+# How many flights left before 5am each day
+not_cancelled %>%
+  group_by(year, month, day) %>%
+  summarize(n_early = sum(dep_time < 500))
+
+# What proportion of flights are delayed by more than an hour?
+not_cancelled %>%
+  group_by(year, month, day) %>%
+  summarize(lg_delay = mean(arr_delay > 60))
+```
+
+# Grouping by multiple variables
+```{r}
+(daily <- group_by(flights, year, month, day))
+(per_day <- summarize(daily, flight_cnt = n()))
+(per_month <- summarize(per_day, flight_cnt = sum(flight_cnt)))
+(per_year <- summarize(per_month, flight_cnt = sum(flight_cnt)))
+
+# Ungroup
+daily %>%
+  ungroup() %>%
+  summarize(flights = n()) # all flights
+```
+
+# Exercises
+```{r}
+# 2
+not_cancelled %>%
+  group_by(dest) %>%
+  # length() finds number of observations in each group
+  summarize(n = length(dest))
+
+# can accomplish the same thing using n()
+not_cancelled %>%
+  group_by(dest) %>%
+  summarize(n = n())
+
+# or can use group_by() and tally()
+not_cancelled %>%
+  group_by(dest) %>%
+  tally()
+
+# Weighted count
+not_cancelled %>%
+  group_by(tailnum) %>%
+  summarize(n = sum(distance))
+
+# Or can use group_by() and tally()
+not_cancelled %>%
+  group_by(tailnum) %>%
+  tally(distance)
+
+# 4
+(cancelled_delayed <- flights %>%
+  mutate(cancelled = (is.na(dep_delay) | is.na(arr_delay) | is.na(dep_time))) %>%
+  group_by(year, month, day) %>%
+  summarize(
+    flight_cnt = n(),
+    prop_cancelled = mean(cancelled),
+    avg_dep_delay = mean(dep_delay, na.rm = TRUE)
+  )
+)
+
+ggplot(cancelled_delayed, aes(x = avg_dep_delay, y = prop_cancelled)) +
+  geom_point() +
+  geom_smooth(se = FALSE)
+```
+
+# Exercises (cont.)
+```{r}
+carr <- flights %>%
+  group_by(carrier)
+# Find worst carrier for departures
+(carr %>%
+   summarize(avg_dep_delay = mean(dep_delay, na.rm = TRUE)) %>%
+   arrange(desc(avg_dep_delay))
+ )
+# Find worst carrier for arrivals
+(carr %>%
+   summarize(avg_arr_delay = mean(arr_delay, na.rm = TRUE)) %>%
+   arrange(desc(avg_arr_delay))
+) 
+
+(ap_fl <- flights %>%
+  group_by(dest) %>%
+  summarize(avg_arr_delay = mean(arr_delay, na.rm = TRUE))
+)
+
+(car_fl <- flights %>%
+  group_by(carrier, dest) %>%
+  summarize(
+    avg_arr_delay = mean(arr_delay, na.rm = TRUE),
+  ) %>%
+  filter(avg_arr_delay >= 0 | avg_arr_delay < 0) # gets rid of NaNs
+)
+```
+
+# Grouped Mutates
+```{r}
+# Find worst members of each group
+(flights_sml %>%
+   group_by(year, month, day) %>%
+   filter(rank(desc(arr_delay)) < 10))
+
+# Find all groups bigger than a threshold
+(popular_dests <- flights %>%
+  group_by(dest) %>%
+  filter(n() > 365)
+)
+
+# Standardize to compute per group metrics
+popular_dests %>%
+  filter(arr_delay > 0) %>%
+  mutate(prop_delay = arr_delay / sum(arr_delay)) %>%
+  select(year:day, dest, arr_delay, prop_delay)
+```
+
+```{r}
+# 2
+(flights %>%
+   group_by(tailnum) %>%
+   summarize(avg_arr_delay = mean(arr_delay, na.rm = TRUE)) %>%
+   select(tailnum, avg_arr_delay) %>%
+   filter(min_rank(desc(avg_arr_delay)) <= 10) %>%
+   arrange(desc(avg_arr_delay))
+)
+
+# 3
+(flights %>%
+    group_by(hour) %>%
+    summarize(avg_arr_delay = mean(arr_delay, na.rm = TRUE)) %>%
+    filter(min_rank(avg_arr_delay) <= 10) %>%
+    arrange(avg_arr_delay)
+)
+```
+
