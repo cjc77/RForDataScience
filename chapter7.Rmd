@@ -1,0 +1,130 @@
+---
+title: "Chapter 7"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+```
+
+# Visualizing Distributions
+```{r}
+# Categorical Variables
+ggplot(data = diamonds) +
+  geom_bar(mapping = aes(x = cut))
+
+diamonds %>%
+  count(cut)
+
+# Continuous variables
+ggplot(data = diamonds) +
+  geom_histogram(mapping = aes(x = carat), binwidth = 0.5)
+
+diamonds %>%
+  count(cut_width(carat, 0.5))
+
+# Zooming in
+smaller <- diamonds %>%
+  filter(carat < 3)
+
+ggplot(data = smaller) +
+  geom_histogram(mapping = aes(x = carat), binwidth = 0.1)
+
+smaller %>%
+  count(cut_width(carat, 0.1))
+
+# Overlaying data from multiple histograms
+ggplot(data = smaller, mapping = aes(x = carat, color = cut)) +
+  geom_freqpoly(binwidth = 0.1)
+```
+
+# Typical values/Unusual values
+```{r}
+ggplot(data = smaller, mapping = aes(x = carat)) +
+  geom_histogram(binwidth = 0.01)
+
+ggplot(data = faithful, mapping = aes(x = eruptions)) +
+  geom_histogram(binwidth = 0.25)
+
+ggplot(diamonds) +
+  geom_histogram(mapping = aes(x = y), binwidth = 0.5)
+
+# Zoom in
+ggplot(diamonds) +
+  geom_histogram(mapping = aes(x = y), binwidth = 0.5) +
+  coord_cartesian(ylim = c(0, 50), xlim = c(-5, 65))
+
+(unusual <- diamonds %>%
+    filter(y < 3 | y > 20) %>%
+    select(price, x, y, z) %>%
+    arrange(y))
+```
+
+# Exercises
+```{r}
+# 1
+(diamonds_xyz <- diamonds %>%
+   mutate(id = row_number()) %>%
+   select(x, y, z, id) %>%
+   gather(variable, value, -id) %>%
+   ggplot(mapping = aes(x = value)) +
+    geom_density() +
+    geom_rug() +
+    facet_grid(variable ~ .)
+ )
+summarize(diamonds, mean(x >= y), mean(x > z), mean(y > z))
+```
+
+# Exercises
+```{r}
+# 2
+ggplot(data = diamonds, mapping = aes(x = price)) +
+  geom_histogram(binwidth = 10)
+
+ggplot(data = diamonds, mapping = aes(x = price)) +
+  geom_histogram(binwidth = 10) +
+  coord_cartesian(xlim = c(0, 5000))
+
+ggplot(data = diamonds, mapping = aes(x = price)) +
+  geom_histogram(binwidth = 50) +
+  coord_cartesian(xlim = c(0, 5000))
+```
+
+# Exercises (cont.)
+```{r}
+# 3
+car1 <- dim(diamonds %>%
+              filter(carat == 0.99))[1]
+
+car2 <- dim(diamonds %>%
+              filter(carat == 1))[1]
+abs(car1 - car2)
+
+(diamonds %>%
+    filter((carat >= 0.99 & carat <= 1)) %>%
+    count(carat))
+
+(diamonds %>%
+    filter((carat >= 0.9 & carat <= 1.1)) %>%
+    count(carat))
+```
+
+# Exercises (cont.)
+```{r}
+# 4
+ggplot(data = diamonds) +
+  geom_histogram(mapping = aes(x = carat)) +
+  coord_cartesian(xlim = c(0, 3), ylim = c(0, 8500))
+
+ggplot(data = diamonds) +
+  geom_histogram(mapping = aes(x = carat)) +
+  xlim(0, 3) +
+  ylim(0, 8500)
+
+# Try zooming halfway (whole bar disappears)
+ggplot(data = diamonds) +
+  geom_histogram(mapping = aes(x = carat)) +
+  xlim(0, 3) +
+  ylim(0, 4250)
+```
+

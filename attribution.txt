@@ -1,0 +1,3 @@
+Thanks to Jeffrey B. Arnold for solutions that I frequently used as a reference while working through this book.
+
+https://jrnold.github.io/r4ds-exercise-solutions/
