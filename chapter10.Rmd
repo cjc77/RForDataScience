@@ -1,0 +1,160 @@
+---
+title: "Chapter 10"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+```
+
+# 10.2 Creating Tibbles
+```{r}
+as_tibble(iris)
+
+tibble(
+  x = 1:5,
+  y = 1,
+  z = x ^ 2 + y
+)
+
+# Tibbles with weird variable names
+tb <- tibble(
+  `:)` = "smile",
+  ` ` = "space",
+  `2000` = "number"
+)
+
+tb
+
+tribble(
+  ~x, ~y, ~z,
+  "a", 2, 3.6,
+  "b", 1, 8.5
+)
+
+```
+
+# 10.3 Tibbles vs. data.frame
+```{r}
+tibble(
+  a = lubridate::now() + runif(1e3) * 86400,
+  b = lubridate::today() + runif(1e3) * 30,
+  c = 1:1e3,
+  d = runif(1e3),
+  e = sample(letters, 1e3, replace = TRUE)
+)
+
+nycflights13::flights %>%
+  print(n = 20, width = Inf)
+
+nycflights13::flights %>%
+  View()
+```
+
+# 10.3.2 Subsetting
+```{r}
+df <- tibble(
+  x = runif(5),
+  y = rnorm(5)
+)
+
+# By name
+df$x
+df[["x"]]
+
+# By position
+df[[1]]
+
+# With pipes
+df %>%
+  .$x
+
+df %>%
+  .[["x"]]
+
+```
+
+# 10.4 Interacting with older code
+```{r}
+# turn tibble into a data fram
+class(as.data.frame(tb))
+```
+
+# 10.5 Exercises
+```{r}
+# 1
+class(mtcars)
+t_mtcars = as_tibble(mtcars)
+class(t_mtcars)
+is_tibble(t_mtcars)
+is_tibble(mtcars)
+
+# 2
+df <- data.frame(abc = 1, xyz = "a")
+df$x
+df[, "xyz"]
+df[, c("abc", "xyz")]
+
+t_df <- as_tibble(df)
+t_df$x
+t_df[, "xyz"]
+t_df[["xyz"]]
+t_df[, c("abc", "xyz")]
+
+# 3
+# mpg is a tibble
+var <- "hwy"
+# to get a vector
+mpg[[var]]
+# to get a tibble
+mpg[, var]
+
+pair <- c("hwy", "displ")
+mpg[, pair]
+```
+
+# 10.5 Exercises (cont.)
+```{r}
+# 4
+# 4.1
+annoying <- tibble(
+  `1` = 1:10,
+  `2` = `1` * 2 + rnorm(length(`1`))
+)
+
+annoying$`1`
+annoying[["1"]]
+
+# 4.2
+ggplot(annoying, aes(x = `1`, y = `2`)) +
+  geom_point()
+
+# 4.3
+# option 1
+annoying[["3"]] <- annoying[["2"]] / annoying[["1"]]
+annoying
+
+# option 2
+(annoying <- annoying %>%
+    mutate(
+      `4` = `2` / `1`
+    ))
+
+# 4.4
+(annoying %>%
+    rename(
+      one = `1`,
+      two = `2`,
+      three = `3`,
+      four = `4`
+    ))
+
+# 5
+(n_v <- enframe(c(a = 1, b = 2, c = 3)))
+# For fun, grab value of row(s) where name is 'a'
+(n_v %>%
+    filter(name == "a") %>%
+    select(value)
+  )
+```
+
