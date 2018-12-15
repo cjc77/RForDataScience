@@ -388,4 +388,3 @@ ggplot(data = mpg, mapping = aes(x = class, y = hwy)) +
   coord_flip() +
   labs(y = "Highway MPG", x = "", title = "Highway MPG by car class")
 ```
-

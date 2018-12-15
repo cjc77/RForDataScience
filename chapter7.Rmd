@@ -5,6 +5,7 @@ output: html_notebook
 
 ```{r}
 library(tidyverse)
+library(nycflights13)
 ```
 
 # Visualizing Distributions
@@ -126,5 +127,123 @@ ggplot(data = diamonds) +
   geom_histogram(mapping = aes(x = carat)) +
   xlim(0, 3) +
   ylim(0, 4250)
+```
+
+# Missing Values
+```{r}
+# Find the outliers (can also refer to the graph in a previous section)
+(diamonds %>%
+   filter((y < 2 | y > 15)))
+
+# drop all strange values -- not recommended because you might just run out of data
+(diamonds_clean <- diamonds %>%
+   filter(between(y, 3, 20)))
+
+# can replace the unusual values with missing values
+(diamonds_clean <- diamonds %>%
+    mutate(y = ifelse(y < 3 | y > 20, NA, y)))
+
+# When using ggplot, removing values will yield a warning
+ggplot(data = diamonds_clean, mapping = aes(x = x, y = y)) +
+  geom_point()
+
+# Suppress the warning
+ggplot(data = diamonds_clean, mapping = aes(x = x, y = y)) +
+  geom_point(na.rm = TRUE)
+```
+
+```{r}
+(nycflights13::flights %>%
+   mutate(
+     cancelled = is.na(dep_time),
+     sched_hour = sched_dep_time %/% 100,
+     sched_min = sched_dep_time %% 100,
+     sched_dep_time = sched_hour + sched_min / 60
+   ) %>%
+   ggplot(mapping = aes(sched_dep_time)) +
+    geom_freqpoly(mapping = aes(color = cancelled), binwidth = 1/4))
+```
+
+# Exercises
+```{r}
+(flts1 <- flights %>%
+   mutate(
+     dep_delay = ifelse(rowSums(is.na(flights)) > 0, NA, dep_delay)
+   ))
+
+ggplot(data = flts1, mapping = aes(x = dep_delay)) +
+  geom_histogram(binwidth = 10)
+
+(flts2 <- flights %>%
+    mutate(
+      carrier = ifelse(rowSums(is.na(flights)) > 0, NA, carrier)
+    ))
+
+ggplot(data = flts2, mapping = aes(x = carrier)) +
+  geom_bar()
+
+mean(flts1$dep_delay)
+mean(flts1$dep_delay, na.rm = TRUE)
+sum(flts1$dep_delay)
+sum(flts1$dep_delay, na.rm = TRUE)
+```
+
+# Covariation
+```{r}
+ggplot(data = diamonds, mapping = aes(x = price)) +
+  geom_freqpoly(mapping = aes(color = cut), binwidth = 500)
+
+ggplot(diamonds) +
+  geom_bar(mapping = aes(x = cut))
+
+# Swap count for density
+ggplot(data = diamonds, mapping = aes(x = price, y = ..density..)) +
+  geom_freqpoly(mapping = aes(color = cut), binwidth = 500)
+
+# Using boxplots
+ggplot(data = diamonds, mapping = aes(x = cut, y = price)) +
+  geom_boxplot()
+
+# Dealing with unordered factors
+ggplot(data = mpg, mapping = aes(x = class, y = hwy)) +
+  geom_boxplot()
+
+ggplot(data = mpg, mapping = aes(x = reorder(class, hwy, FUN = median), y = hwy)) +
+  geom_boxplot()
+
+# Flip plots to deal with long variable names
+ggplot(data = mpg) +
+  geom_boxplot(mapping = aes(x = reorder(class, hwy, FUN = median), y = hwy)) +
+  coord_flip()
+```
+
+# Exercises
+```{r}
+# 1
+(flts <- flights %>%
+   mutate(
+     cancelled = is.na(dep_time) | is.na(arr_time),
+     sched_hour = dep_time %/% 100,
+     sched_min = dep_time %% 100,
+     sched_dep_time = sched_hour + sched_min / 60
+   ))
+
+ggplot(data = flts, mapping = aes(x = sched_dep_time, y = ..density..)) +
+  geom_freqpoly(mapping = aes(color = cancelled))
+
+ggplot(data = flts, mapping = aes(x = cancelled, y = sched_dep_time)) +
+  geom_boxplot()
+```
+
+# Exercises (cont.)
+```{r}
+# 2
+# See how carat relates to price
+ggplot(data = diamonds, mapping = aes(x = carat, y = price)) +
+  geom_point()
+
+# See how carat relates to cut
+ggplot(data = diamonds, mapping = aes(x = reorder(cut, carat, FUN = median), y = carat)) +
+  geom_boxplot()
 ```
 
