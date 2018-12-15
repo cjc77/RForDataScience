@@ -6,6 +6,11 @@ output: html_notebook
 ```{r}
 library(tidyverse)
 library(nycflights13)
+library(ggstance)
+library(lvplot)
+library(ggbeeswarm)
+library(hexbin)
+library(modelr)
 ```
 
 # Visualizing Distributions
@@ -242,8 +247,231 @@ ggplot(data = flts, mapping = aes(x = cancelled, y = sched_dep_time)) +
 ggplot(data = diamonds, mapping = aes(x = carat, y = price)) +
   geom_point()
 
+# Try a binned boxplot
+ggplot(data = diamonds, mapping = aes(x = carat, y = price)) +
+  geom_boxplot(mapping = aes(group = cut_width(carat, 0.1)))
+
 # See how carat relates to cut
 ggplot(data = diamonds, mapping = aes(x = reorder(cut, carat, FUN = median), y = carat)) +
   geom_boxplot()
+```
+
+# Exercises (cont.)
+```{r}
+# 3
+# Using coord_flip()
+ggplot(data = diamonds, mapping = aes(x = reorder(cut, carat, FUN = median), y = carat)) +
+  geom_boxplot() +
+  coord_flip()
+
+# Using ggstance
+ggplot(data = diamonds, mapping = aes(y = reorder(cut, carat, FUN = median), x = carat)) +
+  geom_boxploth()
+
+# 4
+ggplot(data = diamonds, mapping = aes(x = cut, y = price)) +
+  geom_lv()
+```
+
+# Exercises (cont.)
+```{r}
+# geom_freqpoly()
+ggplot(data = diamonds, mapping = aes(x = price, y = ..density..)) +
+  geom_freqpoly(mapping = aes(color = cut), binwidth = 500)
+
+# facetted geom_histogram()
+ggplot(data = diamonds, mapping = aes(x = price)) +
+  geom_histogram() +
+  facet_wrap(~ cut, ncol = 1, scales = "free_y")
+
+ggplot(data = diamonds, mapping = aes(x = price, y = cut)) +
+  geom_violinh()
+```
+
+# Exercises
+```{r}
+ggplot(data = mpg) +
+  geom_quasirandom(mapping = aes(x = reorder(class, hwy, FUN = median),
+                                 y = hwy))
+
+ggplot(data = mpg) +
+  geom_quasirandom(mapping = aes(x = reorder(class, hwy, FUN = median),
+                                 y = hwy),
+                   method = "tukey")
+
+ggplot(data = mpg) +
+  geom_quasirandom(mapping = aes(x = reorder(class, hwy, FUN = median),
+                                 y = hwy),
+                   method = "tukeyDense")
+
+ggplot(data = mpg) +
+  geom_quasirandom(mapping = aes(x = reorder(class, hwy, FUN = median),
+                                 y = hwy),
+                   method = "frowney")
+
+ggplot(data = mpg) +
+  geom_quasirandom(mapping = aes(x = reorder(class, hwy, FUN = median),
+                                 y = hwy),
+                   method = "smiley")
+
+ggplot(data = mpg) +
+  geom_beeswarm(mapping = aes(x = reorder(class, hwy, FUN = median),
+                              y = hwy))
+```
+
+# Two categorical variables
+```{r}
+ggplot(data = diamonds) +
+  geom_count(mapping = aes(x = cut, y = color))
+
+diamonds %>%
+  count(color, cut)
+
+diamonds %>%
+  count(color, cut) %>%
+  ggplot(mapping = aes(x = color, y = cut)) +
+  geom_tile(mapping = aes(fill = n))
+```
+
+# Exercises
+```{r}
+# 1
+# Use a proportion rather than a count
+(diamonds %>%
+   count(color, cut) %>%
+   group_by(color) %>%
+   mutate(prop = n / sum(n)) %>%
+   ggplot(mapping = aes(x = color, y = cut)) +
+     geom_tile(mapping = aes(fill = prop)))
+
+(diamonds %>%
+    count(color, cut) %>%
+    group_by(cut) %>%
+    mutate(prop = n / sum(n)) %>%
+    ggplot(mapping = aes(x = color, y = cut)) +
+      geom_tile(mapping = aes(fill = prop)))
+```
+
+# Exercises (cont.)
+```{r}
+(flights_grpd <- flights %>%
+    group_by(month, dest) %>%
+    summarize(dep_delay = mean(dep_delay, na.rm = TRUE)))
+
+ggplot(data = flights_grpd, mapping = aes(x = factor(month), y = dest, fill = dep_delay)) +
+  geom_tile() +
+  labs(x = "Month", y = "Destination", fill = "Departure Delay")
+
+(flights_grpd <- flights %>%
+    group_by(month, dest) %>%
+    summarize(dep_delay = mean(dep_delay, na.rm = TRUE)) %>%
+    group_by(dest) %>%
+    # At least one flight each month
+    filter(n() == 12) %>%
+    ungroup() %>%
+    mutate(dest = reorder(dest, dep_delay)))
+
+ggplot(data = flights_grpd, mapping = aes(x = factor(month), y = dest, fill = dep_delay)) +
+  geom_tile()
+```
+
+# Two continuous variables
+```{r}
+# Covariation example
+ggplot(data = diamonds) +
+  geom_point(mapping = aes(x = carat, y = price))
+
+# Correct for overplotting by using the alpha aesthetic
+ggplot(data = diamonds) +
+  geom_point(mapping = aes(x = carat, y = price), alpha = 1 / 50)
+
+# 2d binning
+ggplot(data = diamonds) +
+  geom_bin2d(mapping = aes(x = carat, y = price))
+
+ggplot(data = diamonds) +
+  geom_hex(mapping = aes(x = carat, y = price))
+
+# Using binning
+ggplot(data = diamonds, mapping = aes(x = carat, y = price)) +
+  geom_boxplot(mapping = aes(group = cut_width(carat, 0.1)), varwidth = TRUE)
+
+# Try to put approx. same number of points in each bin
+ggplot(data = diamonds, mapping = aes(x = carat, y = price)) +
+  geom_boxplot(mapping = aes(group = cut_number(carat, 20)))
+```
+
+# Exercises
+```{r}
+# 1
+ggplot(data = diamonds,
+       mapping = aes(color = cut_number(carat, 5), x = price)) +
+  geom_freqpoly() +
+  labs(y = "Carat", x = "Price")
+
+ggplot(data = diamonds,
+       mapping = aes(color = cut_width(carat, 0.5, boundary = 0), x = price)) +
+  geom_freqpoly() +
+  labs(y = "Carat", x = "Price")
+
+ggplot(diamonds, aes(x = carat, y = cut_number(price, 10))) +
+  geom_boxploth() +
+  labs(y = "Price", x = "Carat")
+
+ggplot(diamonds, aes(x = carat, y = cut_width(price, 2000, boundary = 0))) +
+  geom_boxploth(varwidth = TRUE) +
+  labs(y = "Price", x = "Carat")
+
+```
+
+# Exercises (cont.)
+```{r}
+ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_bin2d() +
+  facet_wrap(~ cut) +
+  labs(x = "Carat", y = "Price")
+
+ggplot(diamonds, aes(x = price, y = cut_number(carat, 5), color = cut)) +
+  geom_boxploth() +
+  labs(y = "Carat", x = "Price")
+
+ggplot(diamonds, aes(color = cut_number(carat, 5), x = price, y = cut)) +
+  geom_boxploth(varwidth = TRUE)
+
+ggplot(data = diamonds) +
+  geom_point(mapping = aes(x = x, y = y)) +
+  coord_cartesian(xlim = c(4, 11), ylim = c(4, 11))
+```
+
+# Patterns and Models
+```{r}
+ggplot(data = faithful) +
+  geom_point(mapping = aes(x = eruptions, y = waiting))
+
+# use a model to predict price from carat and then compute residuals
+mod <- lm(log(price) ~ log(carat), data = diamonds)
+
+diamonds2 <- diamonds %>%
+  add_residuals(mod) %>%
+  mutate(resid = exp(resid))
+
+ggplot(data = diamonds2) +
+  geom_point(mapping = aes(x = carat, y = resid, alpha = 1 / 50))
+
+# Now that the relationship between carat and price is removed, take another look at cut and price
+ggplot(data = diamonds2) +
+  geom_boxploth(mapping = aes(x = resid, y = reorder(cut, resid, FUN = median)))
+
+```
+
+# ggplot2 calls
+```{r}
+ggplot(faithful, aes(eruptions)) +
+  geom_freqpoly(binwidth = 0.25)
+
+diamonds %>%
+  count(cut, clarity) %>%
+  ggplot(aes(clarity, cut, fill = n)) +
+    geom_tile()
 ```
 
