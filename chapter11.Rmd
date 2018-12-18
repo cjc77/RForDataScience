@@ -6,6 +6,7 @@ output: html_notebook
 # 11.1
 ```{r}
 library(tidyverse)
+library(hms)
 ```
 
 # 11.2 Getting Started
@@ -114,5 +115,78 @@ parse_character(x2, locale = locale(encoding = "Shift-JIS"))
 # When all else fails, try to guess
 guess_encoding(charToRaw(x1))
 guess_encoding(charToRaw(x2))
+```
+
+# 11.3.3 Factors
+```{r}
+fruit <- c("apple", "banana")
+parse_factor(c("apple", "banana", "bananana"), levels = fruit)
+```
+
+# 11.3.4 Dates, date-times, and times
+```{r}
+parse_datetime("2010-10-01T2010")
+parse_datetime("20101010")
+parse_date("2010-10-01")
+parse_time("01:10 am")
+parse_time("20:10:01")
+
+parse_date("01/02/15", "%m/%d/%y")
+parse_date("01/02/15", "%d/%m/%y")
+parse_date("01/02/15", "%y/%m/%d")
+
+parse_date("1 janvier 2015", "%d %B %Y", locale = locale("fr"))
+```
+
+# 11.3.5 Exercises
+```{r}
+# 2
+# the below will throw an error
+# locale(decimal_mark = ".", grouping_mark = ".")
+locale(decimal_mark = ",")
+locale(grouping_mark = ",")
+
+# 3
+parse_date("1 janvier 2015", "%d %B %Y", locale = locale("fr"))
+parse_date("14 oct. 1979", "%d %b %Y", locale = locale("fr"))
+
+# 4
+# create a new locale object
+rando_locale <- locale(date_format = "%Y~%m~%d")
+parse_date("2018~12~17", locale = rando_locale)
+
+# 7
+d1 <- "January 1, 2010"
+d2 <- "2015-Mar-07"
+d3 <- "06-Jun-2017"
+d4 <- c("August 19 (2015)", "July 1 (2015)")
+d5 <- "12/30/14" # Dec 30, 2014
+t1 <- "1705"
+t2 <- "11:15:10.12 PM"
+
+parse_date(d1, "%B %d, %Y")
+parse_date(d2, "%Y-%b-%d")
+parse_date(d3, "%d-%b-%Y")
+parse_date(d4, "%B %d (%Y)")
+parse_date(d5, "%m/%d/%y")
+parse_time(t1, "%H%M")
+parse_time(t2, "%H:%M:%OS %p")
+```
+
+# 11.4 Parsing a File
+# 11.4.1 Strategy
+```{r}
+guess_parser("2010-10-01")
+guess_parser("15:01")
+guess_parser(c("TRUE", "FALSE"))
+guess_parser(c("1", "5", "9"))
+guess_parser(c("12,352,561"))
+str(parse_guess("2010-10-10"))
+```
+
+# 11.4.2
+```{r}
+challenge <- read_csv(readr_example("challenge.csv"))
+
 ```
 
