@@ -320,6 +320,138 @@ ggplot(plane_cohorts, aes(x = age, y = arr_delay_mean)) +
 
 # 13.5.1 Exercises
 ```{r}
+# 1
+(flights %>%
+   anti_join(planes, by = "tailnum") %>%
+   count(carrier, sort = TRUE)
+)
+
+# 2
+(vet_planes <- flights %>%
+    group_by(tailnum) %>%
+    count() %>%
+    rename(flight_count = "n") %>%
+    filter(flight_count >= 100) %>%
+    arrange(desc(flight_count)) %>%
+    filter(tailnum != "NA")
+)
+
+(flights %>%
+    semi_join(vet_planes, by = "tailnum"))
+
+# 3
+# 347 unique models
+(fueleconomy::common %>%
+    arrange(desc(n))
+)
+
+# 3198 unique models
+(fueleconomy::vehicles %>%
+    group_by(model) %>%
+    count()
+)
+
+(fueleconomy::vehicles %>%
+    semi_join(fueleconomy::common, by = c("make", "model"))
+)
 ```
 
+# 13.5.1 Exercises (cont. 1)
+```{r}
+# 4
+(most_delayed <- flights %>%
+   group_by(year, month, day) %>%
+   summarize(delay_24 = sum(dep_delay, na.rm = TRUE) + sum(arr_delay, na.rm = TRUE)) %>%
+   mutate(delay_48 = delay_24 + lag(delay_24)) %>%
+   arrange(desc(delay_48)) 
+)
+
+(delay_weather_48 <- weather %>%
+    group_by(year, month, day) %>%
+    summarize(
+      avg_wind_dir = mean(wind_dir, na.rm = TRUE),
+      avg_wind_spd = mean(wind_speed, na.rm = TRUE),
+      avg_precip = mean(precip, na.rm = TRUE),
+      avg_pressure = mean(pressure, na.rm = TRUE),
+      avg_visib = mean(visib, na.rm = TRUE)
+    ) %>%
+    mutate(
+      avg_wind_dir_48 = avg_wind_dir + lag(avg_wind_dir),
+      avg_wind_spd_48 = avg_wind_spd + lag(avg_wind_spd),
+      avg_precip_48 = avg_precip + lag(avg_precip),
+      avg_pressure_48 = avg_pressure + lag(avg_pressure),
+      avg_visib_48 = avg_visib + lag(avg_visib)
+    ) %>%
+    left_join(most_delayed, by = c("year", "month", "day")) %>%
+    filter(!is.na(delay_48)) %>%
+    select(year:day, ends_with("48")) %>%
+    arrange(desc(delay_48))
+)
+
+check_rel <- function(df, x_col, y_col) {
+  ggplot(df, aes_string(x = x_col, y = y_col)) +
+  geom_point() +
+  geom_smooth(method = "lm")   
+}
+
+check_rel(delay_weather_48, "avg_wind_spd_48", "delay_48")
+check_rel(delay_weather_48, "avg_precip_48", "delay_48")
+check_rel(delay_weather_48, "avg_visib_48", "delay_48")
+```
+
+# 13.5.1 Exercises (cont. 1)
+```{r}
+# 5
+# Airports not known by faa
+anti_join(flights, airports, by = c("dest" = "faa"))
+# Airports with no flights to them
+anti_join(airports, flights, by = c("faa" = "dest"))
+
+# 6
+# 17 planes that have had > 1 carrier
+(multi_carrier <- flights %>%
+    filter(!is.na(tailnum)) %>%
+    distinct(tailnum, carrier) %>%
+    count(tailnum) %>%
+    filter(n > 1)
+)
+
+(multi_carrier <- flights %>%
+    semi_join(multi_carrier, by = "tailnum") %>%
+    select(tailnum, carrier) %>%
+    distinct() %>%
+    arrange(tailnum)
+)
+
+(carrier_transfer <- 
+    multi_carrier %>%
+    group_by(tailnum) %>%
+    mutate(
+      carrier_num = seq_along(tailnum),
+      carrier_num = paste0("carrier_", carrier_num)
+    ) %>%
+    left_join(airlines, by = "carrier") %>%
+    select(-carrier) %>%
+    spread(carrier_num, name)
+)
+```
+
+# 13.7 Set operations
+```{r}
+df1 <- tribble(
+  ~x, ~y,
+   1,  1,
+   2,  1
+)
+df2 <- tribble(
+  ~x, ~y,
+   1,  1,
+   1,  2
+)
+
+intersect(df1, df2)
+union(df1, df2)
+setdiff(df1, df2)
+setdiff(df2, df1)
+```
 
