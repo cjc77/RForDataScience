@@ -1,0 +1,530 @@
+---
+title: "Chapter 23"
+output: html_notebook
+---
+
+# 23.1.1 Prerequisites
+```{r}
+library(tidyverse)
+library(modelr)
+library(splines)
+options(na.action = na.warn)
+```
+
+# 23.2 A simple model
+```{r}
+ggplot(sim1, aes(x = x, y = y)) +
+  geom_point()
+
+models <- tibble(
+  a1 = runif(250, -20, 40),
+  a2 = runif(250, -5, 5)
+)
+
+ggplot(sim1, aes(x = x, y = y)) +
+  geom_abline(aes(intercept = a1, slope = a2), data = models, alpha = 1/4) +
+  geom_point()
+
+
+# Create a model
+model1 <- function(a, data) {
+  a[1] + a[2] * data[["x"]]
+}
+
+model1(c(7, 1.5), sim1)
+
+# Measure distance between prediction and response values
+measure_dist <- function(modl, data) {
+  diff <- data[["y"]] - model1(modl, data)
+  sqrt(mean(diff^2))
+}
+
+(res <- measure_dist(c(7, 1.5), sim1))
+
+# Compute distance for all models defined above
+sim1_dist <- function(a1, a2) {
+  measure_dist(c(a1, a2), sim1)
+}
+
+(models <- models %>%
+    mutate(dist = purrr::map2_dbl(a1, a2, sim1_dist))
+)
+
+# Overlay 10 best models on the data
+ggplot(sim1, aes(x = x, y = y)) +
+  geom_point(size = 2, color = "grey30") +
+  geom_abline(
+    aes(intercept = a1, slope = a2, color = -dist),
+    data = filter(models, rank(dist) <= 10)
+  )
+
+# Visualize models with a scatterplot of a1 vs a2
+ggplot(models, aes(a1, a2)) +
+  geom_point(data = filter(models, rank(dist) <= 10), size = 4, color = "red") +
+  geom_point(aes(color = -dist))
+
+# Instead of doing things randomly, try with a grid search
+(grid <- expand.grid(
+  a1 = seq(-5, 20, length = 25),
+  a2 = seq(1, 3, length = 25)
+  ) %>%
+  mutate(dist = purrr::map2_dbl(a1, a2, sim1_dist))
+)
+
+grid %>%
+  ggplot(aes(x = a1, y = a2)) +
+  geom_point(data = filter(grid, rank(dist) <= 10), size = 4, color = "red") +
+  geom_point(aes(color = -dist))
+
+# Overlay 10 best (grid search) models back on the original data
+ggplot(sim1, aes(x = x, y = y)) +
+  geom_point(size = 2, color = "grey30") +
+  geom_abline(
+    aes(intercept = a1, slope = a2, color = -dist),
+    data = filter(grid, rank(dist) <= 10)
+  )
+
+# Instead of using grid search, use Newton-Raphson
+(best <- optim(c(0, 0), measure_dist, data = sim1))
+best$par
+
+ggplot(sim1, aes(x = x, y = y)) +
+  geom_point(size = 2, color = "grey30") +
+  geom_abline(intercept = best$par[1], slope = best$par[2])
+
+# Use an R linear model
+sim1_modl <- lm(y ~ x, data = sim1)
+coef(sim1_modl)
+
+```
+
+# 23.2.1 Exercises
+```{r}
+# 1
+# In a loop, looking at coefficients
+for (x in (1:3)) {
+  print(sim1a <- tibble(
+    x = rep(1:10, each = 3),
+    y = x * 1.5 + 6 + rt(length(x), df = 2)
+  ))
+  
+  sim1a_modl <- lm(y ~ x, data = sim1a)
+  print(coef(sim1a_modl))
+}
+
+# Using a table of simulations
+simt <- function(id) {
+  tibble(
+    x = rep(1:10, each = 3),
+    y = x * 1.5 + 6 + rt(length(x), df = 2),
+    .id = id
+  )
+}
+
+(sims <- map_df(1:12, simt))
+
+ggplot(sims, aes(x = x, y = y)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "red") +
+  facet_wrap(~ .id, ncol = 3)
+
+```
+
+# 23.2.1 Exercises (cont. 1)
+```{r}
+# 2
+# Generate simulated data
+sim <- tibble(
+  x = rep(1:10, each = 3),
+  y = x * 1.5 + 6 + rt(length(x), df = 2)
+)
+
+# Create a predictive model
+model2 <- function(params, data) {
+  params[1] + params[2] * data$x
+}
+
+# abs Distance measure
+measure_dist_abs <- function(modl, data) {
+  diff <- data$y - model2(modl, data)
+  mean(abs(diff))
+}
+
+# least squares Distance measure
+measure_dist_ls <- function(modl, data) {
+  diff <- data$y - model2(modl,data)
+  sqrt(mean(diff^2))
+}
+
+best_abs <- optim(c(0, 0), measure_dist_abs, data = sim)
+best_abs$par
+
+best_ls <- optim(c(0, 0), measure_dist_ls, data = sim)
+best_ls$par
+
+# compare this to a regular linear model
+ggplot(sim, aes(x = x, y = y)) +
+  geom_point(size = 2, color = "grey30") +
+  # mean abs
+  geom_abline(intercept = best_abs$par[1], slope = best_abs$par[2], color = "blue") +
+  # least squares
+  geom_abline(intercept = best_ls$par[1], slope = best_ls$par[2], color = "red")
+```
+
+
+# 23.3.1 Predictions
+```{r}
+(grid <- sim1 %>%
+   data_grid(x))
+
+(grid <- grid %>%
+    add_predictions(sim1_modl)
+)
+
+ggplot(sim1, aes(x)) +
+  geom_point(aes(y = y)) +
+  geom_line(aes(y = pred), data = grid, color = "red", size = 1)
+```
+
+# 23.3.2 Residuals
+```{r}
+(sim1 <- sim1 %>%
+   add_residuals(sim1_modl)
+)
+
+ggplot(sim1, aes(resid)) +
+  geom_freqpoly(binwidth = 0.5)
+
+# Recreate plot using residuals rather than original predictor
+ggplot(sim1, aes(x, resid)) +
+  geom_ref_line(h = 0) +
+  geom_point()
+```
+
+# 23.3.3 Exercises
+```{r}
+# 1
+# Fit model
+sim1_modl_loess <- loess(y ~ x, data = sim1)
+
+# Generate grid
+(grid <- sim1 %>%
+    data_grid(x) %>%
+    # Add predictions
+    add_predictions(sim1_modl_loess)
+)
+
+# Visualize
+ggplot(sim1, aes(x = x, y = y)) +
+  geom_point() +
+  geom_line(aes(y = pred), data = grid, color = "red", size = 1) +
+  # Compare to geom_smooth() -> they are almost identical
+  geom_smooth(method = "loess", color = "blue", size = 1)
+
+# Check out residuals
+(sim1 <- sim1 %>%
+    add_residuals(sim1_modl_loess, var = "resid_loess")
+)
+
+ggplot(sim1, aes(x = x)) +
+  geom_ref_line(h = 0) +
+  geom_point(aes(y = resid), color = "blue") +
+  geom_point(aes(y = resid_loess), color = "red")
+```
+
+# 23.3.3 Exercises (cont. 1)
+```{r}
+# 2
+sim1_lm <- lm(y ~ x, data = sim1)
+sim1_loess <- loess(y ~ x, data = sim1)
+
+# stack predictions from multiple
+(grid <- sim1 %>%
+    data_grid(x) %>%
+    gather_predictions(sim1_lm, sim1_loess)
+)
+
+# add prediction columns from multiple models 
+(grid <- sim1 %>%
+    data_grid(x) %>%
+    spread_predictions(sim1_lm, sim1_loess)
+)
+
+# 3
+# absolute residuals are useful when residuals are evenly distributed, so only beneficial when your model over and under-estimates at about the same rate
+(sim1 %>%
+    select(-resid_loess) %>%
+    ggplot(aes(x = abs(resid))) +
+      geom_freqpoly(binwidth = 0.5)
+)
+
+(sim1 %>%
+    select(-resid_loess) %>%
+    ggplot(aes(x = resid)) +
+      geom_freqpoly(binwidth = 0.5)
+)
+```
+
+# 23.4 Formulas and model families
+```{r}
+# Ex: y ~ x translates to y = a_1 + a_2 * x in a linear model
+df <- tribble(
+  ~y, ~x1, ~x2,
+  4, 2, 5,
+  5, 1, 6
+)
+
+# R implicitly adds an '(intercept)' column full of 1's
+(model_matrix(df, y ~ x1))
+
+# drop the intercept column
+(model_matrix(df, y ~ x1 - 1))
+
+# add more variables
+(model_matrix(df, y ~ x1 + x2))
+
+# fiddle with variables
+(model_matrix(df, y ~ log(x1) + exp(x2)))
+```
+
+# 23.4.1 Categorical variables
+```{r}
+(df <- tribble(
+  ~ sex, ~ response,
+  "male", 1,
+  "female", 2,
+  "male", 1
+))
+
+(model_matrix(df, response ~ sex))
+
+# An example
+ggplot(sim2) +
+  geom_point(aes(x, y))
+
+# This model will basically predict the mean for each category
+mod2 <- lm(y ~ x, data = sim2)
+
+(
+  grid <- sim2 %>%
+    data_grid(x) %>%
+    add_predictions(mod2)
+)
+
+ggplot(sim2, aes(x)) +
+  geom_point(aes(y = y)) +
+  geom_point(data = grid, aes(y = pred), color = "red", size = 4)
+
+# Error when you try and make predictions about levels you have no observations from
+(
+  tibble(x = "e") %>%
+    add_predictions(mod2)
+)
+```
+
+# 23.4.2 Interactions (continuous and categorical)
+```{r}
+# What happens when your data has continuous and categorical predictors
+ggplot(sim3, aes(x1, y)) +
+  geom_point(aes(color = x2))
+
+# Two modeling options
+# +: estimates each effect independent of all others
+# *: estimates each effect given a so-called "interaction"
+  # Ex:, y ~ x1 * x2 translates to y = a_0 + a_1 * x1 + a_2 * x2 + a_12 * x1 * x2
+mod1 <- lm(y ~ x1 + x2, data = sim3)
+mod2 <- lm(y ~ x1 * x2, data = sim3)
+
+# Visualize these two models
+(
+  grid <- sim3 %>%
+    data_grid(x1, x2) %>%
+    gather_predictions(mod1, mod2)
+)
+
+ggplot(sim3, aes(x1, y, color = x2)) +
+  geom_point() +
+  geom_line(data = grid, aes(y = pred)) +
+  # Separate model 1 and model 2 into different facets
+  facet_wrap(~ model)
+
+(sim3)
+
+(sim3 %>%
+    gather_residuals(mod1, mod2) %>%
+    ggplot(aes(x1, resid, color = x2)) +
+      geom_point() +
+      facet_grid(model ~ x2)
+)
+
+# Which model does a better job?
+# (
+#   sim3 <- sim3 %>%
+#     gather_residuals(mod1, mod2)
+# )
+
+# ggplot(sim3, aes(x1, resid, color = x2)) +
+#   geom_point() +
+#   facet_grid(model ~ x2)
+```
+
+# 23.4.3 Interactions (two continuous)
+```{r}
+mod1 <- lm(y ~ x1 + x2, data = sim4)
+mod2 <- lm(y ~ x1 * x2, data = sim4)
+
+(
+  grid <- sim4 %>%
+    data_grid(
+      x1 = seq_range(x1, 5),
+      x2 = seq_range(x2, 5)
+    ) %>%
+    gather_predictions(mod1, mod2)
+)
+
+# Visualize the models
+ggplot(grid, aes(x1, x2)) +
+  geom_tile(aes(fill = pred)) +
+  facet_wrap(~ model)
+
+# look at multiple slices
+ggplot(grid, aes(x1, pred, color = x2, group = x2)) +
+  geom_line() +
+  facet_wrap(~ model)
+
+ggplot(grid, aes(x2, pred, color = x1, group = x1)) +
+  geom_line() +
+  facet_wrap(~ model)
+```
+
+
+# 23.4.4 Transformations
+```{r}
+# Need to wrap +, *, ^, and - in an I() so R doesn't get confused
+df <- tribble(
+  ~y, ~x,
+  1, 1,
+  2, 2,
+  3, 3
+)
+
+model_matrix(df, y ~ x^2 + x)
+model_matrix(df, y ~ I(x^2) + x)
+
+# poly() -> y = a_1 + a_2 * x + a_3 * x^2 + a_4 * x ^ 3 ...
+model_matrix(df, y ~ poly(x, 2))
+
+# Polynomials rapidly approach +/- inf, so may want to use natural spline
+model_matrix(df, y ~ ns(x, 2))
+
+
+# See what it looks like to approximate a non-linear function
+(
+  sim5 <- tibble(
+    x = seq(0, 3.5 * pi, length = 50),
+    y = 4 * sin(x) + rnorm(length(x))
+  )
+)
+
+ggplot(sim5, aes(x, y)) +
+  geom_point()
+
+
+# Try fitting five models
+mod1 <- lm(y ~ ns(x, 1), data = sim5)
+mod2 <- lm(y ~ ns(x, 2), data = sim5)
+mod3 <- lm(y ~ ns(x, 3), data = sim5)
+mod4 <- lm(y ~ ns(x, 4), data = sim5)
+mod5 <- lm(y ~ ns(x, 5), data = sim5)
+
+(
+  grid <- sim5 %>%
+    data_grid(x = seq_range(x, n = 50, expand = 0.1)) %>%
+    gather_predictions(mod1, mod2, mod3, mod4, mod5, .pred = "y")
+)
+
+# We see that extrapolating outside of the range of observed data often goes very poorly
+ggplot(sim5, aes(x, y)) +
+  geom_point() +
+  geom_line(data = grid, color = "red") +
+  facet_wrap(~ model)
+```
+
+# 23.4.5 Exercises
+```{r}
+# 1
+# Get rid of intercept
+model_matrix(y ~ x - 1, data = sim2)
+moda <- lm(y ~ x - 1, data = sim2)
+modb <- lm(y ~ x, data = sim2)
+
+# Both models yield the same predictions
+(
+  grid1 <- sim2 %>%
+    spread_predictions(moda, modb)
+)
+
+(
+  grid2 <- sim2 %>%
+    gather_predictions(moda, modb)
+)
+
+ggplot(sim2, aes(x)) +
+  geom_point(aes(y = y)) +
+  geom_point(data = grid2, aes(y = pred, color = model), size = 4) +
+  facet_wrap(~ model)
+  # geom_point(data = grid, aes(y = pred), color = "red", size = 4)
+```
+
+# 23.4.5 Exercises (cont. 1)
+```{r}
+# 2
+(model_matrix(y ~ x1 * x2, data = sim3))
+(model_matrix(y ~ x1 * x2, data = sim4))
+
+# * symbolizes the interaction of x1 and x2 includes a1, a2, and a1*a2
+# (where a1 is the term for x1 and a2 is the term for x2)
+
+# 4
+# Check the residuals
+moda <- lm(y ~ x1 + x2, data = sim4)
+modb <- lm(y ~ x1 * x2, data = sim4)
+
+(
+  sim4_resid <- sim4 %>%
+    gather_residuals(moda, modb)
+)
+
+# Visualize Residuals  
+ggplot(sim4_resid, aes(x = resid, color = model)) +
+  geom_freqpoly(binwidth = 0.5)
+
+ggplot(sim4_resid, aes(x = abs(resid), color = model)) +
+  geom_freqpoly(binwidth = 0.5)
+
+# Check standard deviation
+sim4_resid %>%
+  group_by(model) %>%
+  summarize(resid_sd = sd(resid))
+```
+
+# 23.5 Missing Values
+```{r}
+df <- tribble(
+  ~x, ~y,
+  1, 2.2,
+  2, NA,
+  3, 3.5,
+  4, 8.3,
+  NA, 10
+)
+
+mod <- lm(y ~ x, data = df)
+
+# Suppress warning
+mod <- lm(y ~ x, data = df, na.action = na.exclude)
+
+# Check how many observations were used
+nobs(mod)
+```
+
