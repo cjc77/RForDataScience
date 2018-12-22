@@ -1,0 +1,446 @@
+---
+title: "Chapter 25"
+output: html_notebook
+---
+
+# 25.1.1 Prerequisites
+```{r}
+library(modelr)
+library(tidyverse)
+library(gapminder)
+library(broom)
+library(ggbeeswarm)
+```
+
+25.2 gapminder
+```{r}
+gapminder
+
+# how does life expectancy change over time for each country?
+gapminder %>%
+  ggplot(aes(year, lifeExp, group = country)) +
+    geom_line(alpha = 1/3)
+
+# There is a strong linear trend that we should remove
+(
+  nz <- filter(gapminder, country == "New Zealand")
+)
+
+nz %>%
+  ggplot(aes(year, lifeExp)) +
+    geom_line() +
+    ggtitle("Full data = ")
+
+nz_mod <- lm(lifeExp ~ year, data = nz)
+
+nz %>%
+  add_predictions(nz_mod) %>%
+  ggplot(aes(year, pred)) +
+    geom_line() +
+    ggtitle("Linear trend + ")
+
+nz %>%
+  add_residuals(nz_mod) %>%
+  ggplot(aes(year, resid)) +
+    geom_hline(yintercept = 0, color = "white", size = 3) +
+    geom_line() +
+    ggtitle("Remaining pattern")
+
+# Want to fit this model to every country...
+```
+
+# 25.2.1 Nested data
+```{r}
+# Need to create a nested data frame
+(
+  by_country <- gapminder %>%
+    group_by(country, continent) %>%
+    nest()
+)
+
+# look at one of the elements in 'data'
+by_country$data[[1]]
+```
+
+# 25.2.2 List-columns
+```{r}
+country_model <- function(df) {
+  lm(lifeExp ~ year, data = df)
+}
+
+# Want to apply the function to every data frame
+models <- map(by_country$data, country_model)
+
+# Instead of leaving a vector of models, add models to the data frame in the form of a list-column
+(
+  by_country <- by_country %>%
+    mutate(model = map(data, country_model))
+)
+(
+  by_country %>%
+    filter(continent == "Europe")
+)
+(
+  by_country %>%
+    arrange(continent, country)
+)
+```
+
+# 25.2.3 Unnesting
+```{r}
+(
+  by_country <- by_country %>%
+    mutate(
+      resids = map2(data, model, add_residuals)
+    )
+)
+
+# Unnest, but retain the residuals of the models for each country
+(
+  resids <- unnest(by_country, resids)
+)
+
+# Residuals for all countries
+resids %>%
+  ggplot(aes(year, resid)) +
+    geom_line(aes(group = country), alpha = 1/3) +
+    geom_smooth(se = FALSE)
+
+# Residuals by continent
+resids %>%
+  ggplot(aes(year, resid, group = country)) +
+    geom_line(alpha = 1/3) +
+    facet_wrap(~ continent)
+```
+
+# 25.2.4 Model quality
+```{r}
+broom::glance(nz_mod)
+
+# Create data frame with row for each country
+(
+  by_country %>%
+    mutate(glance = map(model, broom::glance)) %>%
+    unnest(glance)
+)
+
+# Drop the other list-columns
+(
+  glance <- by_country %>%
+    mutate(glance = map(model, broom::glance)) %>%
+    unnest(glance, .drop = TRUE)
+)
+
+# Look for models that don't fit well
+(
+  glance %>%
+    arrange(r.squared)
+)
+
+glance %>%
+  ggplot(aes(continent, r.squared)) +
+    geom_point(alpha = 0.25)
+
+# Pull out countries with the worst R squared values
+(
+  bad_fit <- filter(glance, r.squared < 0.25)
+)
+
+(
+  gapminder %>%
+    semi_join(bad_fit, by = "country") %>%
+    ggplot(aes(year, lifeExp, color = country)) +
+      geom_line()
+)
+```
+
+# 25.2.5 Exercises
+```{r}
+# 1
+# Create a function that generates model (transform/normalize year)
+country_model_poly <- function(df) {
+  lm(lifeExp ~ poly(year - mean(year), 2), data = df)
+}
+
+# Create nested data frame
+(
+  by_country2 <- gapminder %>%
+    group_by(country, continent) %>%
+    nest()
+)
+
+# Instead of leaving a vector of models, add models to the data frame in the form of a list-column
+(
+  by_country2 <- by_country2 %>%
+    mutate(model = map(data, country_model_poly))
+)
+
+# Find residuals & unnest
+(
+  by_country2 <- by_country2 %>%
+    mutate(
+      resids = map2(data, model, add_residuals)
+    )
+)
+
+# Unnest, but retain the residuals of the models for each country
+(
+  resids2 <- unnest(by_country2, resids)
+)
+
+# Re-examine residuals by continent
+resids2 %>%
+  ggplot(aes(year, resid, group = country)) +
+    geom_line(alpha = 1/3) +
+    facet_wrap(~ continent)
+
+# Create a summary dataframe for model performance
+(
+  glance2 <- by_country2 %>%
+    mutate(glance = map(model, broom::glance)) %>%
+    unnest(glance, .drop = TRUE) %>%
+    arrange(r.squared)
+)
+
+# Where do the worst r squared values fall?
+glance2 %>%
+  ggplot(aes(continent, r.squared)) +
+    geom_point(alpha = 0.25)
+
+
+# Pull out countries with the worst R squared values
+(
+  bad_fit2 <- filter(glance2, r.squared < 0.7)
+)
+
+(
+  gapminder %>%
+    semi_join(bad_fit2, by = "country") %>%
+    ggplot(aes(year, lifeExp, color = country)) +
+      geom_line()
+)
+```
+
+# 25.2.5 Exercises (cont. 1)
+```{r}
+# 2
+# For original linear model
+by_country %>%
+  mutate(glance = map(model, broom::glance)) %>%
+  unnest(glance, .drop = TRUE) %>%
+  ggplot(aes(continent, r.squared)) +
+    geom_beeswarm()
+
+# For quadratic model
+by_country2 %>%
+  mutate(glance = map(model, broom::glance)) %>%
+  unnest(glance, .drop = TRUE) %>%
+  ggplot(aes(continent, r.squared)) +
+    geom_beeswarm()
+
+# 3
+# Rebuild summary dataframe for model performance
+(
+  glance2a <- by_country2 %>%
+    mutate(glance = map(model, broom::glance)) %>%
+    # unnest(glance, .drop = TRUE) %>%
+    unnest(glance) %>%
+    unnest(data) %>%
+    arrange(r.squared) %>%
+    filter(r.squared < 0.7)
+)
+
+glance2a %>%
+  ggplot(aes(year, lifeExp)) +
+    geom_line(aes(color = country))
+```
+
+# 25.3 List-columns
+```{r}
+# Trying to create list columns using base R
+# Failure
+(
+  data.frame(x = list(1:3, 3:5))
+)
+# Success
+(
+  data.frame(
+    x = I(list(1:3, 3:5)),
+    y = c("1, 2", "3, 4, 5")
+  )
+)
+
+(
+  tibble(
+    x = list(1:3, 3:5),
+    y = c("1, 2", "3, 4,5")
+  )
+)
+
+(
+  tribble(
+    ~x, ~y,
+    1:3, "1, 2",
+    3:5, "3, 4, 5"
+  )
+)
+```
+
+# 25.4.1 With nesting
+```{r}
+# using a grouped data frame
+gapminder %>%
+  group_by(country, continent) %>%
+  nest()
+
+# using an ungrouped data frame
+gapminder %>%
+  nest(year:gdpPercap)
+```
+
+# 25.4.2 From vectorized functions
+```{r}
+(
+  df <- tribble(
+    ~x1,
+    "a,b,c",
+    "d,e,f,g"
+  )
+)
+
+(
+  df %>%
+    mutate(x2 = stringr::str_split(x1, ","))
+)
+
+(
+  df %>%
+    mutate(x2 = stringr::str_split(x1, ",")) %>%
+    unnest()
+)
+
+(
+  sim <- tribble(
+    ~f, ~params,
+    "runif", list(min = -1, max = 1),
+    "rnorm", list(sd = 5),
+    "rpois", list(lambda = 10)
+  )
+)
+
+(
+  sim %>%
+    mutate(sims = invoke_map(f, params, n = 10))
+)
+```
+
+# 25.4.3 From multivalued summaries
+```{r}
+# Can vectorize summarize (store in a list)
+(
+  mtcars %>%
+    group_by(cyl) %>%
+    summarize(q = list(quantile(mpg)))
+)
+
+probs <- c(0.01, 0.25, 0.5, 0.75, 0.99)
+(
+  mtcars %>%
+    group_by(cyl) %>%
+    summarize(p = list(probs), q = list(quantile(mpg, probs))) %>%
+    unnest()
+)
+```
+
+# 25.4.4 From a named list
+```{r}
+(
+  x <- list(
+    a = 1:5,
+    b = 3:4,
+    c = 5:6
+  )
+)
+
+(
+  df <- enframe(x)
+)
+
+# iterate over names and values in parallel
+(
+  df %>%
+    mutate(
+      smry = map2_chr(name, value, ~ stringr::str_c(.x, ": ", .y[1]))
+    )
+)
+```
+
+# 25.4.5 Exercises
+```{r}
+# 3
+(
+  mtcars %>% 
+    group_by(cyl) %>% 
+    summarise(q = list(quantile(mpg))) %>% 
+    unnest()
+)
+
+# 4
+mtcars %>% 
+  group_by(cyl) %>% 
+  summarise_each(funs(list))
+
+```
+
+# 25.5 Simplifying list-columns
+# 25.5.1 List to vector
+```{r}
+(
+  df <- tribble(
+    ~x,
+    letters[1:5],
+    1:3,
+    runif(5)
+  )
+)
+df$x[[1]]
+df$x[[2]]
+df$x[[3]]
+
+(
+  df %>% mutate(
+    type = map_chr(x, typeof),
+    length = map_int(x, length)
+  )
+)
+
+(
+  df <- tribble(
+    ~x,
+    list(a = 1, b = 2),
+    list(a = 2, c = 4)
+  )
+)
+
+(
+  df %>% mutate(
+    a = map_dbl(x, "a"),
+    b = map_dbl(x, "b", .null = NA_real_)
+  )
+)
+```
+
+# 25.5.2 Unnesting
+```{r}
+(
+  df <- tibble(
+    x = 1:2,
+    y = list(1:4, 1)
+  )
+)
+
+# repeats values of x once for each element of y's list column
+(
+  df %>% unnest(y)
+)
+```
