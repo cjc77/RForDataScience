@@ -1,0 +1,497 @@
+---
+title: "Chapter 24"
+output: html_notebook
+---
+
+# 24.1.1 Prerequisites
+```{r}
+library(tidyverse)
+library(modelr)
+library(splines)
+options(na.action = na.warn)
+
+library(nycflights13)
+library(lubridate)
+```
+
+# 24.2 Why are low quality diamonds more expensive?
+```{r}
+ggplot(diamonds, aes(cut, price)) +
+  geom_boxplot(aes(x = reorder(cut, price, FUN = median)))
+ggplot(diamonds, aes(color, price)) +
+  geom_boxplot(aes(x = reorder(color, price, FUN = median)))
+ggplot(diamonds, aes(clarity, price)) +
+  geom_boxplot(aes(x = reorder(clarity, price, FUN = median)))
+```
+
+# 24.2.1 Price and carat
+```{r}
+ggplot(diamonds, aes(carat, price)) +
+  geom_hex(bins = 50)
+
+# What is the distribution of carats?
+ggplot(diamonds) +
+  geom_histogram(aes(carat), binwidth = .5)
+
+ggplot(diamonds, aes(x = carat)) +
+  geom_density()
+
+ggplot(diamonds, aes(x = carat)) +
+  stat_ecdf(geom = "step") +
+  labs(y = "cumulative density")
+
+# High probability (99.8%) that 
+diamond_cdf <- ecdf(diamonds[["carat"]])
+diamond_cdf(2.5)
+
+# Mutate price and carat to clarify the relationship
+(
+  diamonds2 <- diamonds %>%
+    filter(carat <= 2.5) %>%
+    mutate(lprice = log2(price), lcarat = log2(carat))
+)
+
+ggplot(diamonds2, aes(lcarat, lprice)) +
+  geom_hex(bins = 50)
+
+# We now have a linear patter on lcarat and lprice
+mod_diamond <- lm(lprice ~ lcarat, data = diamonds2)
+
+# Back transform predictions (undo log transformation)
+(
+  grid <- diamonds2 %>%
+    data_grid(carat = seq_range(carat, 20)) %>%
+    mutate(lcarat = log2(carat)) %>%
+    add_predictions(mod_diamond, "lprice") %>%
+    mutate(price = 2 ^ lprice)
+)
+
+ggplot(diamonds2, aes(carat, price)) +
+  geom_hex(bins = 50) +
+  geom_line(data = grid, color = "red", size = 1)
+
+# Look at the risiduals to make sure the pattern is gone
+(
+  diamonds2 <- diamonds2 %>%
+    add_residuals(mod_diamond, "lresid")
+)
+
+ggplot(diamonds2, aes(lcarat, lresid)) +
+  geom_hex(bins = 50)
+
+# Redo the motivating plots
+ggplot(diamonds2, aes(cut, lresid)) +
+  geom_boxplot(aes(x = reorder(cut, lresid, FUN = median)))
+ggplot(diamonds2, aes(color, lresid)) +
+  geom_boxplot(aes(x = reorder(color, lresid, FUN = median)))
+ggplot(diamonds2, aes(clarity, lresid)) +
+  geom_boxplot(aes(x = reorder(clarity, lresid, FUN = median)))
+```
+
+# 24.2.2 A more complicated model
+```{r}
+# 
+mod_diamond2 <- lm(lprice ~ lcarat + color + cut + clarity, data = diamonds2)
+(
+  grid <- diamonds2 %>%
+    data_grid(cut, .model = mod_diamond2) %>%
+    add_predictions(mod_diamond2)
+)
+
+ggplot() +
+  geom_point(data = diamonds2, aes(cut, lprice, size = price)) +
+  geom_point(data = grid, aes(cut, pred), color = "red", size = 5)
+
+(
+  diamonds2 <- diamonds2 %>%
+    add_residuals(mod_diamond2, "lresid2")
+)
+
+# Since these are logs, some of the residuals are very large
+ggplot(diamonds2, aes(lcarat, lresid2)) +
+  geom_hex(bins = 50)
+
+(
+  diamonds2 %>%
+    filter(abs(lresid2) > 1) %>%
+    add_predictions(mod_diamond2) %>%
+    mutate(pred = round(2 ^ pred)) %>%
+    select(price, pred, carat:table, x:z) %>%
+    arrange(price)
+)
+```
+
+# 24.2.3 Exercises
+```{r}
+# 1
+ggplot(diamonds2, aes(lcarat, lprice)) +
+  geom_hex(bins = 50)
+
+# 4
+(
+  diamonds2 %>%
+    add_predictions(mod_diamond2) %>%
+    add_residuals(mod_diamond2) %>%
+    summarize(
+      sq_err = sqrt(mean(resid ^ 2)),
+      abs_err = mean(abs(resid)),
+      p975_err = quantile(resid, 0.975),
+      p025_err = quantile(resid, 0.025)
+    )
+)
+```
+
+# 24.3 What affects the number of daily flights?
+```{r}
+(
+  daily <- flights %>%
+    mutate(date = make_date(year, month, day)) %>%
+    group_by(date) %>%
+    summarize(n = n())
+)
+
+ggplot(daily, aes(date, n)) +
+  geom_line()
+
+```
+
+# 24.3.1 Day of week
+```{r}
+(
+  daily <- daily %>%
+    mutate(wday = wday(date, label = TRUE))
+)
+
+ggplot(daily, aes(wday, n)) +
+  geom_boxplot()
+
+# Fit model & display predictions
+mod <- lm(n ~ wday, data = daily)
+
+(
+  grid <- daily %>%
+    data_grid(wday) %>%
+    add_predictions(mod, "n")
+)
+
+ggplot(daily, aes(wday, n)) +
+  geom_boxplot() +
+  geom_point(data = grid, color = "red", size = 4)
+
+# Compute & visualize residuals
+(
+  daily <- daily %>%
+    add_residuals(mod)
+)
+
+# Model starts to fail near June
+ggplot(daily, aes(date, resid)) +
+  geom_ref_line(h = 0) +
+  geom_line()
+
+# Try separating the days out by color
+ggplot(daily, aes(date, resid, color = wday)) +
+  geom_ref_line(h = 0) +
+  geom_line()
+
+(
+  daily %>%
+    filter(resid < -100)
+)
+
+# Highlight the smoother long-term trend
+(
+  daily %>%
+    ggplot(aes(date, resid)) +
+    geom_ref_line(h = 0) +
+    geom_line(color = "grey50") +
+    geom_smooth(se = FALSE, span = 0.20)
+)
+```
+
+# 24.3.2 Seasonal Saturday effect
+```{r}
+(
+  daily %>%
+    filter(wday == "Sat") %>%
+    ggplot(aes(date, n)) +
+      geom_point() +
+      geom_line() +
+      scale_x_date(NULL, date_breaks = "1 month", date_labels = "%b")
+)
+
+term <- function(date) {
+  cut(
+    date,
+    breaks = ymd(20130101, 20130605, 20130825, 20140101),
+    labels = c("spring", "summer", "fall")
+  )
+}
+
+(
+  daily <- daily %>%
+    mutate(term = term(date))
+)
+
+(
+  daily %>%
+    filter(wday == "Sat") %>%
+    ggplot(aes(date, n, color = term)) +
+    geom_point(alpha = 1/3) +
+    geom_line() +
+    scale_x_date(NULL, date_breaks = "1 month", date_labels = "%b")
+)
+
+(
+  daily %>%
+    ggplot(aes(wday, n, color = term)) +
+      geom_boxplot()
+)
+
+mod1 <- lm(n ~ wday, data = daily)
+mod2 <- lm(n ~ wday * term, data = daily)
+
+(
+  daily %>%
+    gather_residuals(without_term = mod1, with_term = mod2) %>%
+    ggplot(aes(date, resid, color = model)) +
+      geom_line(alpha = 0.75)
+)
+
+# Overlay predictions from the model on to the raw data
+(
+  grid <- daily %>%
+    data_grid(wday, term) %>%
+    add_predictions(mod2, "n")
+)
+
+
+# The model is highly sensitive to outliers
+ggplot(daily, aes(wday, n)) +
+  geom_boxplot() +
+  geom_point(data = grid, color = "red") +
+  facet_wrap(~ term)
+
+# Try a model that is less sensitive to outliers
+mod3 <- MASS::rlm(n ~ wday * term, data = daily)
+
+(
+  daily %>%
+    add_residuals(mod3, "resid")
+)
+
+(
+  grid <- daily %>%
+    data_grid(wday, term) %>%
+    add_predictions(mod3, "n")
+)
+
+ggplot(daily, aes(wday, n)) +
+  geom_boxplot() +
+  geom_point(data = grid, color = "red") +
+  facet_wrap(~ term)
+
+(
+  daily %>%
+    add_residuals(mod3, "resid") %>%
+    ggplot(aes(date, resid)) +
+    geom_hline(yintercept = 0, size = 2, color = "white") +
+    geom_line()
+)
+
+# Compare to model 2
+(
+  daily %>%
+    gather_residuals(model2 = mod2, model3 = mod3) %>%
+    ggplot(aes(date, resid, color = model)) +
+      geom_line(alpha = 0.75)
+)
+```
+
+# 24.3.3 Computed variables
+```{r}
+# Bundle up creation of variables into a function
+compute_vars <- function(data) {
+  data %>%
+    mutate(
+      term = term(date),
+      wday = wday(date, label = TRUE)
+    )
+}
+
+# Could also do this with the model formula
+wday2 <- function(x) { wday(x, label = TRUE) }
+mod3a <- lm(n ~ wday2(date) * term(date), data = daily)
+```
+
+# 24.3.4 Time of year: an alternative approach
+```{r}
+mod <- MASS::rlm(n ~ wday * ns(date, 5), data = daily)
+
+(
+  daily %>%
+    data_grid(wday, date = seq_range(date, n = 13)) %>%
+    add_predictions(mod) %>%
+    ggplot(aes(date, pred, color = wday)) +
+      geom_line() +
+      geom_point()
+)
+```
+
+# 24.3.5 Exercises
+```{r}
+# 2
+(daily %>%
+   top_n(3, resid)
+ )
+
+# 3
+(
+  daily <- daily %>%
+    mutate(
+      wday2 = case_when(
+        wday == "Sat" & term == "summer" ~ "Sat-summer",
+        wday == "Sat" & term == "fall" ~ "Sat-fall",
+        wday == "Sat" & term == "spring" ~ "Sat-spring",
+        TRUE ~ as.character(wday)
+      )
+    )
+)
+
+mod_sat <- lm(n ~ wday2, data = daily)
+
+(
+  daily %>%
+    gather_residuals(sat_term = mod_sat, all_interact = mod2) %>%
+    ggplot(aes(date, resid, color = model)) +
+      geom_line(alpha = 0.75)
+)
+
+(
+  daily %>%
+    spread_residuals(sat_term = mod_sat, all_interact = mod2) %>%
+    mutate(resid_diff = sat_term - all_interact) %>%
+    ggplot(aes(date, resid_diff)) +
+      geom_line(alpha = 0.75)
+)
+
+(
+  g1 <- broom::glance(mod_sat) %>%
+    select(r.squared, sigma, AIC, df) %>%
+    mutate(mod = "mod_sat")
+)
+
+(
+  g2 <- broom::glance(mod2) %>%
+    select(r.squared, sigma, AIC, df) %>%
+    mutate(mod = "mod2")
+)
+
+(
+  gs <- bind_rows(g1, g2) %>%
+    select(mod, everything())
+)
+```
+
+# 24.3.5 Exercises (cont. 1)
+```{r}
+# 4
+holidays_2013 <-
+  tribble(
+    ~ holiday,                    ~ date,
+    "New Year's Day",             20130101,
+    "Martin Luther King Jr. Day", 20130121,
+    "Washington's Birthday",      20130218,
+    "Memorial Day",               20130527,
+    "Independence Day",           20130704,
+    "Labor Day",                  20130902,
+    "Columbus Day",               20131028,
+    "Veteran's Day",              20131111,
+    "Thanksgiving",               20131128,
+    "Christmas",                  20131225
+  ) %>%
+  mutate(date = lubridate::ymd(date))
+
+(
+  daily <- daily %>%
+    mutate(
+      wday3 = case_when(
+        (date - 1L) %in% holidays_2013$date ~ "day before holiday",
+        (date + 1L) %in% holidays_2013$date ~ "day after holiday",
+        date %in% holidays_2013$date ~ "holiday",
+        .$wday == "Sat" & .$term == "summer" ~ "Sat-summer",
+        .$wday == "Sat" & .$term == "fall" ~ "Sat-fall",
+        .$wday == "Sat" & .$term == "spring" ~ "Sat-spring",
+        TRUE ~ as.character(.$wday)
+      )
+    )
+)
+
+mod_hol <- lm(n ~ wday3, data = daily)
+
+daily %>%
+  spread_residuals(resid_sat_terms = mod_sat, resid_holidays = mod_hol) %>%
+  mutate(resid_diff = resid_holidays - resid_sat_terms) %>%
+  ggplot(aes(date, resid_diff)) +
+    geom_line(alpha = 0.75)
+
+daily %>%
+  gather_residuals(resid_sat_terms = mod_sat, resid_holidays = mod_hol) %>%
+  ggplot(aes(date, resid, color = model)) +
+    geom_line(alpha = 0.75)
+```
+
+
+# 24.3.5 Exercises (cont. 1)
+```{r}
+# 5
+(
+  daily <- mutate(daily, month = lubridate::month(date))
+)
+
+mod_month <- lm(n ~ wday * month, data = daily)
+
+daily %>%
+  gather_residuals(resid_day = mod2, resid_month = mod_month) %>%
+  ggplot(aes(date, resid, color = model)) +
+    geom_line(alpha = 0.75)
+
+(
+  g1 <- broom::glance(mod2) %>%
+    select(r.squared, sigma, AIC, df) %>%
+    mutate(mod = "mod_day")
+)
+
+(
+  g2 <- broom::glance(mod_month) %>%
+    select(r.squared, sigma, AIC, df) %>%
+    mutate(mod = "mod_month")
+)
+
+(
+  gs <- bind_rows(g1, g2) %>%
+    select(mod, everything())
+)
+
+```
+
+# 24.3.5 Exercises (cont. 1)
+```{r}
+moda <- MASS::rlm(n ~ wday * ns(date, 5), data = daily)
+modb <- MASS::rlm(n ~ wday + ns(date, 5), data = daily)
+
+(
+  daily %>%
+    data_grid(wday, date = seq_range(date, n = 13)) %>%
+    gather_predictions(ma = moda, mb = modb)
+)
+  
+daily %>%
+  data_grid(wday, date = seq_range(date, n = 13)) %>%
+  gather_predictions(ma = moda, mb = modb) %>%
+  ggplot(aes(date, pred, color = wday)) +
+    geom_line() +
+    geom_point() +
+    facet_wrap(~ model)
+```
+
